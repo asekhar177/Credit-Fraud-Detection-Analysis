@@ -1,0 +1,116 @@
+---
+title: "Credit Fraud Detection Analysis"
+author: "Arjun Sekhar"
+date: "2023-12-26"
+output: pdf_document
+---
+
+# Introduction
+
+
+
+# Data Preparation
+
+As preparation we establish some of the packages that will come into use in this analysis. This is outlined in the below chunk of R.
+
+```{r, warning=FALSE, message=FALSE}
+library(dplyr)
+library(tidyverse)
+library(pander)
+library(corrplot)
+library(caTools)
+library(caret)
+library(PRROC)
+library(glmnet)
+```
+
+The next step involves introducing the `ratings_for_upload.csv` data set using the `read.csv()` function. Our aim here is to analyse and understand the data, as well as the variables that are at our disposal. This will segway into the exploratory data analysis (EDA), allowing us to pursue a model building strategy.
+
+```{r}
+# Set the working directory
+setwd("/Users/arjunsekhar/OneDrive/Knowledge/Courses/Kaggle/credit-fraud-analysis")
+
+# Input the data
+credit <- read.csv('creditcard.csv', header = TRUE)
+head(credit)
+```
+
+From the data presented, a total of 284807 transactions of 31 variables are recorded, which is a representation of credit card transactions in September 2013 by European credit card holders. As mentioned in the context of this task, the data has been dealt with Principal Component Analysis (PCA) transformations extensively, this limits the extent of information available.
+
+# Exploratory Data Analysis (EDA)
+
+## A) Spread of values in 'Class' column
+
+Firstly with the `Class` column, we can alter the summary by identifying the factors as `Non Fraudulent` and `Fraudulent` transactions. Upon doing so, this summary can be presented as a table using `pander`, which is a neater way of displaying the information in LaTeX format.
+
+```{r}
+credit$Class <- as.factor(credit$Class)
+levels(credit$Class) <- c('Non Fraudulent', 'Fraudulent')
+
+credit_class <- credit %>%
+  group_by(Class) %>%
+  summarise(Total = n()) %>%
+  mutate(Frequency = round(Total/sum(Total), 5)) %>%
+  arrange(desc(Frequency))
+
+pander(credit_class)
+```
+
+From the above we can see how the data provided is unbalanced. Despite the context provided acting as a foreshadow to this exploratory revelation, it can be foreshadowed from an everyday perspective since we would anticipate most transactions to be non fraudulent. Given the intention is to measure the accuracy, the Area Under the Curve (AUC) concept will be applied as the accuracy measure.  
+
+## B) Missing Values
+
+The next step is to analyse the proportion of missing values from the context of this data set. 
+
+```{r}
+# Quantity of Missing Values
+credit %>% 
+  is.na() %>%
+  sum()
+```
+
+From the above we can see how there are no missing values. Although such a reading is rare, in this context it can be attributed to the data preparation when the data was provided.
+
+## C) Correlation Matrix
+
+```{r}
+credit %>% duplicated() %>% sum()
+
+credit2 <- credit
+credit2$Class <- as.numeric(credit2$Class)
+
+credit_correlation <- cor(credit2[], method = 'spearman')
+corrplot(credit_correlation, method = 'shade', tl.cex = 0.65)
+```
+
+Due to the the author applying the Principal Component Analysis prior to the publishing of this data, it can be seen from the above that most variables are not correlated with one another. 
+
+# Data Modelling
+
+## A) Splitting the data set into train and test sets
+
+The next step is useful for the purpose of our model building and subsequent analysis. The first goal is to standardise the data, so as to ensure that the values are scaled according to a specific range, negating the existence of extreme values to our analysis. Note that the `set.seed()` is used to ensure data reproducibility using random numbers. Upon doing this, we split the data into train and test data sets, with 80% of values used in the former and 20% in the latter. 
+
+```{r}
+# Standardising the data
+credit$Amount <- scale(credit$Amount)
+credit3 <- credit[,c(-1)]
+pander(head(credit3))
+
+# Random Number Generator
+set.seed(1234) 
+
+# Split the data
+credit_data <- sample.split(credit3$Class, SplitRatio = 0.8)
+train_set <- subset(credit3, credit_data == TRUE)
+test_set <- subset(credit3, credit_data == FALSE)
+
+# Dimensions
+dim(train_set)
+dim(test_set)
+```
+
+
+## B) Fit Logistic Regression Model
+
+The next step involves the fitting of a logistic model. We use this as our initial model building method because 
