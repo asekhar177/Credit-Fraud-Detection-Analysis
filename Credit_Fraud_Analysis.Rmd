@@ -7,7 +7,7 @@ output: pdf_document
 
 # Introduction
 
-
+The Credit Fraud Detection data is derived from a project in Kaggle (see link: https://www.kaggle.com/datasets/mlg-ulb/creditcardfraud/data) with the intention of decoding and modelling the transactions from September 2013 by European cardholders. The data itself is drawn from transactions across two calendar days, comprising of 492 fraudulent transactions from 284,807 transactions. Note that this data contains only numeric variables, which are a resultant of a Principal Component Analysis (PCA). This means the original raw data features are unknown for the purposes of this exercise.
 
 # Data Preparation
 
@@ -19,7 +19,9 @@ library(tidyverse)
 library(pander)
 library(corrplot)
 library(caTools)
+library(DHARMa)
 library(caret)
+library(pROC)
 library(PRROC)
 library(glmnet)
 ```
@@ -32,10 +34,12 @@ setwd("/Users/arjunsekhar/OneDrive/Knowledge/Courses/Kaggle/credit-fraud-analysi
 
 # Input the data
 credit <- read.csv('creditcard.csv', header = TRUE)
-head(credit)
+pander(head(credit))
 ```
 
 From the data presented, a total of 284807 transactions of 31 variables are recorded, which is a representation of credit card transactions in September 2013 by European credit card holders. As mentioned in the context of this task, the data has been dealt with Principal Component Analysis (PCA) transformations extensively, this limits the extent of information available.
+
+\newpage
 
 # Exploratory Data Analysis (EDA)
 
@@ -85,6 +89,8 @@ corrplot(credit_correlation, method = 'shade', tl.cex = 0.65)
 
 Due to the the author applying the Principal Component Analysis prior to the publishing of this data, it can be seen from the above that most variables are not correlated with one another. 
 
+\newpage
+
 # Data Modelling
 
 ## A) Splitting the data set into train and test sets
@@ -113,4 +119,43 @@ dim(test_set)
 
 ## B) Fit Logistic Regression Model
 
-The next step involves the fitting of a logistic model. We use this as our initial model building method because 
+The next step involves the fitting of a logistic model using the test data. This is our initial model building method because traditional fraud analytics involves the usage of a binary system to detect card fraud. A Receiver Operating Characteristic (ROC) Curve will be employed in order to investigate the Area Under the Curve (AUC).
+
+```{r, warning=FALSE}
+# Logistic Regression using Train Data
+credit_log_train <- glm(Class ~ ., data = train_set, family = 'binomial')
+summary(credit_log_train)
+```
+
+Viewing the plots of this logistic model, we can see the following:
+
+```{r}
+## Plots of the Train Data
+par(mfrow=c(2,2))
+plot(credit_log_train)
+```
+
+We can see from the above that both the QQ and the Residuals Plots have the majority of points following a linear trend (although there are values that deviate from normality). Given there are no substantial outliers (from the context of this exercise), we will move into the Test Set in order to transition into the analysis of the Area Under the Curve (AUC) using the Receiver Operating Characteristic (ROC).
+
+```{r, warning=FALSE}
+# Logistic Regression using Train Data
+credit_log_test <- glm(Class ~ ., data = test_set, family = 'binomial')
+summary(credit_log_test)
+```
+
+Having now established the model of the test data, we can proceed with visualising the residuals and the normality of this data. Upon doing this step, we can proceed with creating the Receiver Operating Characteristic (ROC) curve. Note that we want this reading to be high, but in order to be able to compare against other algorithms and investigate the model suitability.
+
+```{r}
+## Plots of the Test Data
+par(mfrow=c(2,2))
+plot(credit_log_test)
+```
+
+Similar to the train data, the test data shows near similar results. It can be seen that the majority of points follow a linear trend in the tests of normality, but given we are assessing the model against the binary response variable `Class`, we will proceed with visualising with an Area Under the Curve plot. 
+
+```{r}
+credit_log_prediction <- predict(credit_log_test, newdata = test_set, probability = TRUE)
+roc(test_set$Class, credit_log_prediction, plot = TRUE)
+```
+
+
